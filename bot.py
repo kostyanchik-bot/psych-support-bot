@@ -11,6 +11,7 @@ from survey import survey_questions
 from analysis import analyze_responses
 from recommendations import get_recommendations
 from datetime import time, datetime
+import random
 
 # Шаги опроса
 SECTION, QUESTION = range(2)
@@ -46,6 +47,14 @@ habit_checklists = {
         "☑️ Без соцсетей за 2 часа до сна"
     ]
 }
+
+motivational_quotes = [
+    "Ты молодец! Даже маленькие шаги — это движение вперёд!",
+    "Каждое усилие имеет значение. Продолжай в том же духе!",
+    "Отмечая привычки, ты приближаешься к лучшей версии себя!",
+    "Не сдавайся, прогресс уже виден!",
+    "Сила в постоянстве. Отличная работа!"
+]
 
 user_habit_progress = {}
 
@@ -122,16 +131,43 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text.startswith("☑️") or text.startswith("✅") or text.startswith("⬜️"):
         category = user_habit_progress.get(user_id, {}).get("current_category")
         if category:
-            current = user_habit_progress.setdefault(user_id, {}).setdefault(category, set())
-            if text in habit_checklists[category]:
-                if text in current:
-                    current.remove(text)
+            checklist = habit_checklists[category]
+            original_item = None
+            for item in checklist:
+                if text.endswith(item[2:]):
+                    original_item = item
+                    break
+            if original_item:
+                current = user_habit_progress.setdefault(user_id, {}).setdefault(category, set())
+                if original_item in current:
+                    current.remove(original_item)
                 else:
-                    current.add(text)
-        return await menu_handler(update, context)
+                    current.add(original_item)
+
+                formatted = []
+                for item in checklist:
+                    check_symbol = "✅" if item in current else "⬜️"
+                    formatted.append(f"{check_symbol} {item[2:]}")
+                keyboard = [[item] for item in checklist] + [["🔙 Назад"]]
+
+                message = f"{category}:\n\n" + "\n".join(formatted)
+                message += f"\n\n💬 {random.choice(motivational_quotes)}"
+
+                if set(checklist) == current:
+                    message += "\n\n🎉 Поздравляем! Вы выполнили все привычки в этой категории сегодня!"
+
+                await update.message.reply_text(
+                    message,
+                    reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                )
+        return ConversationHandler.END
 
     elif text == "🔙 Назад":
-        return await start(update, context)
+        await update.message.reply_text(
+            "↩️ Возврат в главное меню:",
+            reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
+        )
+        return ConversationHandler.END
 
     else:
         await update.message.reply_text("Пожалуйста, выберите пункт из меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
