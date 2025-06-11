@@ -4,12 +4,13 @@ load_dotenv()
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ContextTypes,
-    ConversationHandler, filters
+    ConversationHandler, filters, JobQueue
 )
 import os
 from survey import survey_questions
 from analysis import analyze_responses
 from recommendations import get_recommendations
+from datetime import time, datetime
 
 # Шаги опроса
 SECTION, QUESTION = range(2)
@@ -19,7 +20,7 @@ MAIN_MENU = [
     ["📝 Пройти тест"],
     ["📚 Материалы", "📞 Помощь"],
     ["📋 Чек-листы привычек"],
-    ["🔙 Назад"]
+    ["🔃 Сбросить привычки"]
 ]
 
 # Чек-листы
@@ -46,6 +47,8 @@ habit_checklists = {
     ]
 }
 
+user_habit_progress = {}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     reply_markup = ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
@@ -59,6 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    user_id = update.effective_user.id
 
     if text == "📝 Пройти тест":
         context.user_data['section_idx'] = 0
@@ -92,13 +96,39 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    elif text == "🔃 Сбросить привычки":
+        user_habit_progress[user_id] = {}
+        await update.message.reply_text("🔄 Прогресс привычек сброшен.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
+        return ConversationHandler.END
+
     elif text in habit_checklists:
         checklist = habit_checklists[text]
+        user_progress = user_habit_progress.get(user_id, {}).get(text, set())
+
+        formatted = []
+        for item in checklist:
+            check_symbol = "✅" if item in user_progress else "⬜️"
+            formatted.append(f"{check_symbol} {item[2:]}")
+
+        keyboard = [[item] for item in checklist] + [["🔙 Назад"]]
+        user_habit_progress.setdefault(user_id, {})["current_category"] = text
+
         await update.message.reply_text(
-            f"{text}:\n\n" + "\n".join(checklist),
-            reply_markup=ReplyKeyboardMarkup(HABITS_MENU, resize_keyboard=True)
+            f"{text} (нажмите, чтобы отметить выполненное):\n\n" + "\n".join(formatted),
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
         return ConversationHandler.END
+
+    elif text.startswith("☑️") or text.startswith("✅") or text.startswith("⬜️"):
+        category = user_habit_progress.get(user_id, {}).get("current_category")
+        if category:
+            current = user_habit_progress.setdefault(user_id, {}).setdefault(category, set())
+            if text in habit_checklists[category]:
+                if text in current:
+                    current.remove(text)
+                else:
+                    current.add(text)
+        return await menu_handler(update, context)
 
     elif text == "🔙 Назад":
         return await start(update, context)
@@ -172,9 +202,19 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def reset_habit_progress(context: ContextTypes.DEFAULT_TYPE):
+    global user_habit_progress
+    user_habit_progress = {}
+    print(f"[{datetime.now()}] Сброс прогресса привычек выполнен.")
+
+
 def main():
     TOKEN = os.getenv("TELEGRAM_TOKEN")
     app = Application.builder().token(TOKEN).build()
+
+    # Планировщик для сброса прогресса каждый день в 00:00
+    job_queue: JobQueue = app.job_queue
+    job_queue.run_daily(reset_habit_progress, time=time(hour=0, minute=0))
 
     conv_handler = ConversationHandler(
         entry_points=[
