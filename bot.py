@@ -1,5 +1,6 @@
 # bot.py
-
+from dotenv import load_dotenv
+load_dotenv()
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ContextTypes, ConversationHandler, filters
