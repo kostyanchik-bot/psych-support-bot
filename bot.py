@@ -1,19 +1,15 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ContextTypes,
-    ConversationHandler, CallbackQueryHandler, filters
+    ConversationHandler, filters
 )
+import os
 from survey import survey_questions
 from analysis import analyze_responses
 from recommendations import get_recommendations
-
-import os
-import datetime
-from collections import defaultdict
-import random
 
 # Шаги опроса
 SECTION, QUESTION = range(2)
@@ -22,24 +18,33 @@ SECTION, QUESTION = range(2)
 MAIN_MENU = [
     ["📝 Пройти тест"],
     ["📚 Материалы", "📞 Помощь"],
-    ["🎯 Эмоции", "🧩 Антистресс"],
-    ["📋 Привычки", "📅 Советы"],
-    ["📊 Статистика"]
+    ["📋 Чек-листы привычек"],
+    ["🔙 Назад"]
 ]
 
-# Простейшее хранилище статистики
-user_stats = defaultdict(lambda: {"tests": 0, "last_result": None})
-
-# Простой список привычек
-habits = ["💧 Выпил воду", "😴 Лег спать вовремя", "🚶 Прогулялся", "🍎 Поел полезное"]
-
-# Советы на каждый день
-daily_tips = [
-    "Сделай 5 глубоких вдохов — это мгновенно снизит тревожность.",
-    "Постарайся лечь спать на 30 минут раньше обычного.",
-    "Прогулка 15 минут на свежем воздухе улучшит настроение.",
-    "Попробуй записать 3 хорошие вещи, которые случились сегодня."
+# Чек-листы
+HABITS_MENU = [
+    ["🧘 Утренние практики"],
+    ["💧 Водный баланс"],
+    ["📵 Цифровой детокс"],
+    ["🔙 Назад"]
 ]
+
+habit_checklists = {
+    "🧘 Утренние практики": [
+        "☑️ Проснулся без прокрастинации",
+        "☑️ Сделал зарядку или растяжку",
+        "☑️ Медитировал хотя бы 3 минуты"
+    ],
+    "💧 Водный баланс": [
+        "☑️ Выпил стакан воды утром",
+        "☑️ Следил за уровнем гидратации в течение дня"
+    ],
+    "📵 Цифровой детокс": [
+        "☑️ 1 час без телефона после пробуждения",
+        "☑️ Без соцсетей за 2 часа до сна"
+    ]
+}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -49,6 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Выберите, что хотите сделать:",
         reply_markup=reply_markup
     )
+    return ConversationHandler.END
 
 
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -65,47 +71,41 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📚 Полезные материалы:\n\n"
             "• Управление стрессом: https://example.com/stress\n"
             "• Медитации: https://example.com/meditation\n"
-            "• Прокрастинация: https://example.com/procrastination"
+            "• Прокрастинация: https://example.com/procrastination",
+            reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
         )
+        return ConversationHandler.END
 
     elif text == "📞 Помощь":
         await update.message.reply_text(
             "📞 Горячая линия: 8-***-***-**-**\n"
             "✉ Вы можете также обратиться в службу поддержки вуза.\n"
-            "💬 Мы здесь, чтобы помочь!"
+            "💬 Мы здесь, чтобы помочь!",
+            reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
         )
+        return ConversationHandler.END
 
-    elif text == "🎯 Эмоции":
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("😊", callback_data="happy"),
-             InlineKeyboardButton("😐", callback_data="neutral"),
-             InlineKeyboardButton("😟", callback_data="anxious")]
-        ])
-        await update.message.reply_text("Как вы себя чувствуете сегодня?", reply_markup=keyboard)
+    elif text == "📋 Чек-листы привычек":
+        await update.message.reply_text(
+            "📋 Выберите категорию привычек:",
+            reply_markup=ReplyKeyboardMarkup(HABITS_MENU, resize_keyboard=True)
+        )
+        return ConversationHandler.END
 
-    elif text == "🧩 Антистресс":
-        tips = ["Закрой глаза и сосчитай до 10.", "Встань, потянись, улыбнись.", "Сделай 10 глубоких вдохов.", "Попробуй вспомнить что-то хорошее сегодня."]
-        await update.message.reply_text("🧘 Упражнение: " + random.choice(tips))
+    elif text in habit_checklists:
+        checklist = habit_checklists[text]
+        await update.message.reply_text(
+            f"{text}:\n\n" + "\n".join(checklist),
+            reply_markup=ReplyKeyboardMarkup(HABITS_MENU, resize_keyboard=True)
+        )
+        return ConversationHandler.END
 
-    elif text == "📋 Привычки":
-        markup = ReplyKeyboardMarkup([[h] for h in habits] + [["⬅ Назад"]], resize_keyboard=True)
-        await update.message.reply_text("Отметь, что ты сегодня выполнил:", reply_markup=markup)
-
-    elif text == "📅 Советы":
-        await update.message.reply_text("📅 Совет дня: " + random.choice(daily_tips))
-
-    elif text == "📊 Статистика":
-        user_id = update.effective_user.id
-        stats = user_stats[user_id]
-        msg = f"📊 Кол-во тестов: {stats['tests']}\n"
-        if stats['last_result']:
-            msg += f"📈 Последний результат: {stats['last_result']['level']}"
-        await update.message.reply_text(msg)
+    elif text == "🔙 Назад":
+        return await start(update, context)
 
     else:
-        await update.message.reply_text("Пожалуйста, выберите пункт из меню.")
-
-    return ConversationHandler.END
+        await update.message.reply_text("Пожалуйста, выберите пункт из меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
+        return ConversationHandler.END
 
 
 async def ask_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,10 +156,6 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = analyze_responses(context.user_data['responses'])
     recs = get_recommendations(result)
 
-    user_id = update.effective_user.id
-    user_stats[user_id]['tests'] += 1
-    user_stats[user_id]['last_result'] = result
-
     await update.message.reply_text(f"📊 Уровень тревожности: *{result['level']}*", parse_mode="Markdown")
     await update.message.reply_text("📌 Рекомендации:")
     for r in recs:
@@ -174,18 +170,6 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚫 Опрос отменён. Вы можете начать заново с /start", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
     return ConversationHandler.END
-
-
-async def emotion_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    emoji = query.data
-    messages = {
-        "happy": "😊 Здорово! Поделись этим настроением с другом!",
-        "neutral": "😐 Нормально. Может, попробовать что-то новенькое сегодня?",
-        "anxious": "😟 Это нормально. Попробуй дыхательные упражнения или обратись за поддержкой."
-    }
-    await query.edit_message_text(messages.get(emoji, "Спасибо за отклик!"))
 
 
 def main():
@@ -204,7 +188,6 @@ def main():
     )
 
     app.add_handler(conv_handler)
-    app.add_handler(CallbackQueryHandler(emotion_callback))
     print("Бот запущен...")
     app.run_polling()
 
