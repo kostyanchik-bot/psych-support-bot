@@ -4,14 +4,12 @@ load_dotenv()
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ContextTypes,
-    ConversationHandler, filters, JobQueue
+    ConversationHandler, filters
 )
 import os
 from survey import survey_questions
 from analysis import analyze_responses
 from recommendations import get_recommendations
-from datetime import time, datetime
-import random
 
 # Шаги опроса
 SECTION, QUESTION = range(2)
@@ -19,44 +17,8 @@ SECTION, QUESTION = range(2)
 # Главное меню
 MAIN_MENU = [
     ["📝 Пройти тест"],
-    ["📚 Материалы", "📞 Помощь"],
-    ["📋 Чек-листы привычек"],
-    ["🔃 Сбросить привычки"]
+    ["📚 Материалы", "📞 Помощь"]
 ]
-
-# Чек-листы
-HABITS_MENU = [
-    ["🧘 Утренние практики"],
-    ["💧 Водный баланс"],
-    ["📵 Цифровой детокс"],
-    ["🔙 Назад"]
-]
-
-habit_checklists = {
-    "🧘 Утренние практики": [
-        "☑️ Проснулся бодрым",
-        "☑️ Сделал зарядку или растяжку",
-        "☑️ Медитировал хотя бы 3 минуты"
-    ],
-    "💧 Водный баланс": [
-        "☑️ Выпил стакан воды утром",
-        "☑️ Следил за уровнем водного баланса в течение дня"
-    ],
-    "📵 Цифровой детокс": [
-        "☑️ 1 час без телефона после пробуждения",
-        "☑️ Без соцсетей за 2 часа до сна"
-    ]
-}
-
-motivational_quotes = [
-    "Ты молодец! Даже маленькие шаги — это движение вперёд!",
-    "Каждое усилие имеет значение. Продолжай в том же духе!",
-    "Отмечая привычки, ты приближаешься к лучшей версии себя!",
-    "Не сдавайся, прогресс уже виден!",
-    "Сила в постоянстве. Отличная работа!"
-]
-
-user_habit_progress = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -68,10 +30,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    user_id = update.effective_user.id
 
     if text == "📝 Пройти тест":
         context.user_data['section_idx'] = 0
@@ -98,81 +58,9 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    elif text == "📋 Чек-листы привычек":
-        await update.message.reply_text(
-            "📋 Выберите категорию привычек:",
-            reply_markup=ReplyKeyboardMarkup(HABITS_MENU, resize_keyboard=True)
-        )
-        return ConversationHandler.END
-
-    elif text == "🔃 Сбросить привычки":
-        user_habit_progress[user_id] = {}
-        await update.message.reply_text("🔄 Прогресс привычек сброшен.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
-        return ConversationHandler.END
-
-    elif text in habit_checklists:
-        checklist = habit_checklists[text]
-        user_progress = user_habit_progress.get(user_id, {}).get(text, set())
-
-        formatted = []
-        for item in checklist:
-            check_symbol = "✅" if item in user_progress else "⬜️"
-            formatted.append(f"{check_symbol} {item[2:]}")
-
-        keyboard = [[item] for item in checklist] + [["🔙 Назад"]]
-        user_habit_progress.setdefault(user_id, {})["current_category"] = text
-
-        await update.message.reply_text(
-            f"{text} (нажмите, чтобы отметить выполненное):\n\n" + "\n".join(formatted),
-            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        )
-        return ConversationHandler.END
-
-    elif text.startswith("☑️") or text.startswith("✅") or text.startswith("⬜️"):
-        category = user_habit_progress.get(user_id, {}).get("current_category")
-        if category:
-            checklist = habit_checklists[category]
-            original_item = None
-            for item in checklist:
-                if text.endswith(item[2:]):
-                    original_item = item
-                    break
-            if original_item:
-                current = user_habit_progress.setdefault(user_id, {}).setdefault(category, set())
-                if original_item in current:
-                    current.remove(original_item)
-                else:
-                    current.add(original_item)
-
-                formatted = []
-                for item in checklist:
-                    check_symbol = "✅" if item in current else "⬜️"
-                    formatted.append(f"{check_symbol} {item[2:]}")
-                keyboard = [[item] for item in checklist] + [["🔙 Назад"]]
-
-                message = f"{category}:\n\n" + "\n".join(formatted)
-                message += f"\n\n💬 {random.choice(motivational_quotes)}"
-
-                if set(checklist) == current:
-                    message += "\n\n🎉 Поздравляем! Вы выполнили все привычки в этой категории сегодня!"
-
-                await update.message.reply_text(
-                    message,
-                    reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-                )
-        return ConversationHandler.END
-
-    elif text == "🔙 Назад":
-        await update.message.reply_text(
-            "↩️ Возврат в главное меню:",
-            reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
-        )
-        return ConversationHandler.END
-
     else:
         await update.message.reply_text("Пожалуйста, выберите пункт из меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
         return ConversationHandler.END
-
 
 async def ask_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     section_idx = context.user_data['section_idx']
@@ -189,7 +77,6 @@ async def ask_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"{question['text']}", reply_markup=markup)
     return QUESTION
-
 
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = update.message.text
@@ -215,7 +102,6 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         return await ask_question(update, context)
 
-
 async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Спасибо за ваши ответы! Проводим анализ...", reply_markup=ReplyKeyboardRemove())
 
@@ -232,25 +118,13 @@ async def finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚫 Опрос отменён. Вы можете начать заново с /start", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
     return ConversationHandler.END
 
-
-async def reset_habit_progress(context: ContextTypes.DEFAULT_TYPE):
-    global user_habit_progress
-    user_habit_progress = {}
-    print(f"[{datetime.now()}] Сброс прогресса привычек выполнен.")
-
-
 def main():
     TOKEN = os.getenv("TELEGRAM_TOKEN")
     app = Application.builder().token(TOKEN).build()
-
-    # Планировщик для сброса прогресса каждый день в 00:00
-    job_queue: JobQueue = app.job_queue
-    job_queue.run_daily(reset_habit_progress, time=time(hour=0, minute=0))
 
     conv_handler = ConversationHandler(
         entry_points=[
