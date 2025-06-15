@@ -58,6 +58,30 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    elif text == "🚨 Мне тревожно":
+        await update.message.reply_text(
+            "😟 Понимаю, сейчас может быть тяжело.\n\n"
+            "Давай попробуем немного стабилизироваться вместе.\n"
+            "Вот простое упражнение:\n\n"
+            "👉 Сделай 5 глубоких вдохов и выдохов.\n"
+            "👉 Назови 3 вещи, которые видишь вокруг.\n"
+            "👉 Потрогай 1 вещь рядом с тобой и почувствуй её текстуру.\n\n"
+            "Ты справляешься лучше, чем тебе кажется. 💙",
+            reply_markup=ReplyKeyboardMarkup([["📞 Горячая линия", "🔙 Назад"]], resize_keyboard=True)
+        )
+        return ConversationHandler.END
+
+    elif text == "📞 Горячая линия":
+        await update.message.reply_text(
+            "📞 Вот контакты, куда можно обратиться:\n\n"
+            "• Общероссийская линия доверия: 8-800-2000-122\n"
+            "• Психологическая служба вуза: +7 (000) 000-00-00\n"
+            "• Онлайн-помощь: https://example.com/help\n\n"
+            "Ты не один. Помощь есть. ❤️",
+            reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True)
+        )
+        return ConversationHandler.END
+
     else:
         await update.message.reply_text("Пожалуйста, выберите пункт из меню.", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
         return ConversationHandler.END
