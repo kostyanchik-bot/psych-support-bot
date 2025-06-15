@@ -17,7 +17,8 @@ SECTION, QUESTION = range(2)
 # Главное меню
 MAIN_MENU = [
     ["📝 Пройти тест"],
-    ["📚 Материалы", "📞 Помощь"]
+    ["📚 Материалы", "📞 Помощь"],
+    ["🚨 Мне тревожно"]
 ]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
